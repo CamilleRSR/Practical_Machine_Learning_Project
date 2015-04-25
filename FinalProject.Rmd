@@ -1,0 +1,188 @@
+---
+title: "Practical Machine Learning"
+author: "Final Project"
+date: "April 2015"
+output: html_document
+---
+
+#Background 
+###(given as part of the assignment)
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+```{r, cache=TRUE, echo=FALSE}
+library(caret); library(randomForest); library(rpart); library(rpart.plot)
+set.seed(3467)
+setwd("~/Practical Machine Learning/Practical_Machine_Learning_Project")
+
+training_data <- read.csv("pml-training.csv", header = TRUE, na.strings = c("NA"," "))
+testing_data <- read.csv("pml-testing.csv", header = TRUE, na.strings = c("NA", " "))
+
+inTrain <- createDataPartition(y=training_data$classe, p=0.6, list=FALSE)
+
+myTraining <- training_data[inTrain, ]
+myTesting <- training_data[-inTrain, ]
+
+#dim(myTraining)
+#dim(myTesting)
+
+nzv <- nearZeroVar(myTraining, saveMetrics=TRUE) #find possible near zero variance variables
+
+drop <- rownames(nzv)[nzv$nzv == TRUE] #vector containing all the row names with NZV
+
+myTraining <- myTraining[,!(names(myTraining) %in% drop)]
+myTesting <- myTesting[,!(names(myTesting) %in% drop)]
+
+myTraining <- myTraining[,-c(1:7)] #remove first 7 columns that relate to specific subjects or sequences
+myTesting <- myTesting[,-c(1:7)]   #which are not needed for the ML
+
+# Delete columns with all missing values
+myTraining <- myTraining[,colSums(is.na(myTraining)) == 0]
+myTesting <- myTesting[,colSums(is.na(myTesting)) == 0]
+
+model = train(classe~.,method="rf", ntree=50, data=myTraining)
+
+#mean(predict(model, myTesting) == myTesting$classe) * 100 #99.19704
+predictions <- predict(model, myTesting)
+
+#submission code
+
+pml_write_files = function(x){
+     n = length(x)
+     for(i in 1:n){
+         filename = paste0("problem_id_",i,".txt")
+         write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+     }
+ }
+
+###do predictions on original testing data
+testing_data1 <- testing_data[,-c(1:7)]
+testing_data1 <- testing_data1[,!(names(testing_data1) %in% drop)]
+testing_data1 <- testing_data1[,colSums(is.na(testing_data1)) == 0]
+
+predictions2 <- predict(model, testing_data1)
+#pml_write_files(predictions2)
+```
+
+#Obtaining the Data
+
+The training data set can be found on the following URL:
+
+http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The testing data set can be found on the following URL:
+
+http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+```{r, echo=TRUE, eval=FALSE}
+library(caret); library(rpart); library(rpart.plot)
+
+set.seed(3467)
+
+setwd("~/Practical Machine Learning/Practical_Machine_Learning_Project")
+
+training_data <- read.csv("pml-training.csv", header = TRUE, na.strings = c("NA"," "))
+testing_data <- read.csv("pml-testing.csv", header = TRUE, na.strings = c("NA", " "))}
+```
+
+#Partitioning the Data
+
+I partitioned the data into two sets. Sixty percent for the training set and forty percent for the testing set.
+
+```{r, echo=TRUE, eval=FALSE}
+inTrain <- createDataPartition(y=training_data$classe, p=0.6, list=FALSE)
+
+myTraining <- training_data[inTrain, ]
+myTesting <- training_data[-inTrain, ]
+
+#checking set sizes
+dim(myTraining)
+dim(myTesting)
+``` 
+
+```{r, echo=FALSE}
+#checking set sizes
+dim(myTraining)
+dim(myTesting)
+```
+
+#Cleaning the Data
+
+I cleaned and organized the data as follows. I preformed identical procedure on the testing data. 
+
+```{r, echo=TRUE, eval=FALSE}
+
+#find possible near zero variance variables
+nzv <- nearZeroVar(myTraining, saveMetrics=TRUE) 
+
+#vector containing all the row names with NZV (near zero variance)
+drop <- rownames(nzv)[nzv$nzv == TRUE] 
+
+#dropping the nzv data from the set
+myTraining <- myTraining[,!(names(myTraining) %in% drop)]
+myTesting <- myTesting[,!(names(myTesting) %in% drop)]
+
+#remove first 7 columns that relate to specific subjects or sequences
+#which are not needed for the ML/analysis
+myTraining <- myTraining[,-c(1:7)] 
+myTesting <- myTesting[,-c(1:7)]   
+
+# Delete columns with all missing values
+myTraining <- myTraining[,colSums(is.na(myTraining)) == 0]
+myTesting <- myTesting[,colSums(is.na(myTesting)) == 0]
+```
+
+#Algorthim - Decision Tree
+
+```{r, echo=TRUE, eval=FALSE}
+model = train(classe~.,method="rf", ntree=50, data=myTraining)
+```
+
+#Checking Error Rate & Predictions
+
+```{r, echo=TRUE, eval=FALSE}
+#error rate as percentage
+mean(predict(model, myTesting) == myTesting$classe) * 100
+
+predictions <- predict(model, myTesting)
+```
+
+The error rate:
+```{r, echo=FALSE}
+mean(predict(model, myTesting) == myTesting$classe) * 100
+```
+
+I was surprised at the fantastic error rate. I decided to check it with a confusion matrix. 
+
+```{r, echo=FALSE, cache=TRUE}
+confusionMatrix(predictions, myTesting$classe)
+```
+
+```{r, echo=FALSE, cache=TRUE}
+CM <- confusionMatrix(predictions, myTesting$classe)
+plot(CM[[2]], main="Confusion Matrix: Decision Tree Model")
+```
+
+The CM also showed fantastic results so I contined on to check it on my saved testing data. 
+
+```{r, echo=TRUE, eval=FALSE}
+#submission code
+
+pml_write_files = function(x){
+     n = length(x)
+     for(i in 1:n){
+         filename = paste0("problem_id_",i,".txt")
+         write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+     }
+ }
+
+###do predictions on original testing data
+testing_data1 <- testing_data[,-c(1:7)]
+testing_data1 <- testing_data1[,!(names(testing_data1) %in% drop)]
+testing_data1 <- testing_data1[,colSums(is.na(testing_data1)) == 0]
+
+predictions2 <- predict(model, testing_data1)
+pml_write_files(predictions2)
+```
+
+I submitted all the files at the class website and got 20/20 correct. Sucess!
